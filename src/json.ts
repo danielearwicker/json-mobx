@@ -13,7 +13,7 @@ function jsonImpl(prototype: any, propertyName: any) {
                 const data = {} as any;
                 for (const propertyName of that[jsonPropertiesKey]) {
                     const val = that[propertyName];
-                    const valJson = (val && val.data) || val;
+                    const valJson = (val && val.json) || val;
                     data[propertyName] = valJson;
                 }
                 return data;

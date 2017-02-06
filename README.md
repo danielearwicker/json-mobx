@@ -106,3 +106,7 @@ It implements the `json` property so that the format is
 The `settings` part depends on the type.
 
 When the type changes, the previous instance has its `dispose` method called, if any. Also `Polymorph` itself implements `dispose` by calling on to the current instance's `dispose`, if any.
+
+## Undo
+
+When you construct an `Undo` object you pass it the root object-with-a-`json`-property and it immediately captures the current state. It does this inside `autorun`, so if the state changes it will be recaptured. The second time this happens, the previous state is pushed onto the undo stack. `Undo` has public properties `canUndo` and `canRedo`, and methods `undo` and `redo`, so you can link those up to a couple of toolbar buttons in an editor.

@@ -5,6 +5,8 @@ Based on a single trivial concept: an object must have a mutable property called
 
 As the `json` property is mutable, it means you can restore the object to a prior state by assigning to its `json` property. This is in contrast to most serialization systems which deserialize by creating a brand new tree of objects. Here we tend towards *minimally updating* an existing tree to bring it into line with the provided JSON.
 
+This is particularly suited to situations where an object is not pure data but is also dependent on (or depended on by) the "environment". This is closely related to the way React components can use `componentDidMount` and `componentWillUnmount` to wire themselves into environmental dependencies. Or to put it another way, objects have a life-cycle.
+
 ## The `json` decorator
 
 For many simple types of object, which just have a set of properties that need to be stored, it is a pain to write the `json` property by hand. So we provide a `json` decorator:

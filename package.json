@@ -1,0 +1,23 @@
+{
+  "name": "json-mobx",
+  "version": "0.1.0",
+  "description": "Simple undo/redo and persistence for MobX",
+  "main": "built/index.js",
+  "types": "built/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublish": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/danielearwicker/json-mobx.git"
+  },
+  "author": "Daniel Earwicker <dan@earwicker.com>",
+  "license": "MIT",
+  "dependencies": {
+    "mobx": "^3.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^2.1.5"
+  }
+}

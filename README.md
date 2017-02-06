@@ -7,6 +7,8 @@ As the `json` property is mutable, it means you can restore the object to a prio
 
 This is particularly suited to situations where an object is not pure data but is also dependent on (or depended on by) the "environment". This is closely related to the way React components can use `componentDidMount` and `componentWillUnmount` to wire themselves into environmental dependencies. Or to put it another way, objects have a life-cycle.
 
+    npm install --save json-mobx
+
 ## The `json` decorator
 
 For many simple types of object, which just have a set of properties that need to be stored, it is a pain to write the `json` property by hand. So we provide a `json` decorator:

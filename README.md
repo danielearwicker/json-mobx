@@ -92,7 +92,7 @@ constructor(type: string, private factory: (type: string) => T) ...
 
 It has a `readonly` property `target` which is the current owned instance.
 
-It has `get` and `set` methods that operate on the object type. So `p.set("MisterTickle")` will assign a new instance of `MisterTickle` (that is, whatever is returned when the factory is called with `"MisterTickle"`). If you're familiar with [bidi-mobx](https://github.com/danielearwicker/bidi-mobx)you'll have noticed that this makes it a `BoxedValue` holding the type of the object, so it can be bound to a `SelectString`.
+It has `get` and `set` methods that operate on the object type. So `p.set("MisterTickle")` will assign a new instance of `MisterTickle` (that is, whatever is returned when the factory is called with `"MisterTickle"`). If you're familiar with [bidi-mobx](https://github.com/danielearwicker/bidi-mobx) you'll have noticed that this makes it a `BoxedValue` holding the type of the object, so it can be bound to a `SelectString`.
 
 It implements the `json` property so that the format is 
 

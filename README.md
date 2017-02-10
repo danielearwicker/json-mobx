@@ -110,3 +110,4 @@ When the type changes, the previous instance has its `dispose` method called, if
 ## Undo
 
 When you construct an `Undo` object you pass it the root object-with-a-`json`-property and it immediately captures the current state. It does this inside `autorun`, so if the state changes it will be recaptured. The second time this happens, the previous state is pushed onto the undo stack. `Undo` has public properties `canUndo` and `canRedo`, and methods `undo` and `redo`, so you can link those up to a couple of toolbar buttons in an editor.
+

@@ -3,7 +3,18 @@ import { computed, IComputedValue } from "mobx";
 const jsonPropertiesKey = "$jsonProperties";
 const jsonJsonKey = "$jsonJson";
 
-function jsonImpl(prototype: any, propertyName: any) {
+function getPropertyDescriptor(obj: any, propertyName: string) {
+    while (obj) {
+        const desc = Object.getOwnPropertyDescriptor(obj, propertyName);
+        if (desc) {
+            return desc;
+        }
+        obj = Object.getPrototypeOf(obj);
+    }
+    return undefined;
+}
+
+function jsonImpl(prototype: any, propertyName: string) {
     
     function getJsonComputed(that: any) {
 
@@ -21,10 +32,13 @@ function jsonImpl(prototype: any, propertyName: any) {
                 for (const propertyName of that[jsonPropertiesKey]) {
                     const source = data[propertyName];
                     const target = that[propertyName];
-                    if (target && typeof target === "object" && "json" in target) {
+                    if (source && target && typeof target === "object" && "json" in target) {
                         target.json = source;
                     } else {
-                        that[propertyName] = source;
+                        const prop = getPropertyDescriptor(that, propertyName);
+                        if (!prop || prop.set || !prop.get) {
+                            that[propertyName] = source;
+                        }
                     }
                 }
             });
@@ -62,13 +76,13 @@ function jsonImpl(prototype: any, propertyName: any) {
 }
 
 function checkJsonProperty(obj: any) {
-    if (!obj && !("json" in obj)) {
+    if (typeof obj !== "object" || !("json" in obj)) {
         throw new Error("Cannot load/save objects without json property");
     }
 }
 
 function load(obj: any, data: any) {    
-    if (data) {
+    if (data !== "undefined" && obj) {
         checkJsonProperty(obj);
         obj.json = data;
     }

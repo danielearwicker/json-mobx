@@ -15,28 +15,46 @@ export class Collection<T extends (Identified & Partial<Disposable>)> {
     @computed get json() {
         return this.items.map(json.save);
     }
-    set json(data) {        
-        // Do a simple diff/merge to avoid recreating items unnecessarily
-        const existing: { [id: string]: boolean } = {};
-        for (let i = 0; i < this.items.length; i++) {
-            const item = this.items[i];
-            const itemJson = data.find(w => w.id === item.id);
-            if (itemJson) {
-                json.load(item, itemJson);
-                existing[item.id] = true;
-            } else {
-                if (item.dispose) {
-                    item.dispose();
-                }                
-                this.items.splice(i, 1);
-                i--;
+    set json(data) {
+
+        // Build map of existing items by id (check for uniqueness)
+        const existing: { [id: string]: T } = {};
+        for (const item of this.items) {
+            if (existing[item.id]) {
+                throw new Error(`Duplicate item id ${item.id}`);
             }
+            existing[item.id] = item;
         }
-        for (const itemJson of data) {
-            if (!existing[itemJson.id]) {
-                const newItem = this.factory();
-                json.load(newItem, itemJson);
-                this.items.push(newItem);
+
+        // Bring into line with supplied data
+        if (data && Array.isArray(data)) {            
+            for (let i = 0; i < data.length; i++) {
+                const itemJson = data[i];
+
+                // Reuse existing item with same id
+                let item = existing[itemJson.id];
+                if (item) {
+                    delete existing[itemJson.id];
+                } else {
+                    item = this.factory();
+                }
+
+                json.load(item, itemJson);
+                if (item.id !== itemJson.id) {
+                    throw new Error("Items must have persistent id property");
+                }
+
+                this.items[i] = item;
+            }
+        } else {
+            this.items.length = 0;
+        }
+
+        // Dispose any items not reused
+        for (const key of Object.keys(existing)) {
+            const item = existing[key];
+            if (item.dispose) {
+                item.dispose();
             }
         }
     }

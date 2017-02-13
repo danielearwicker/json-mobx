@@ -207,10 +207,9 @@ function load(obj: any, data: any) {
         const existing: { [id: string]: any } = {};
         for (const item of obj) {
             const id = getArrayItemId(item);
-            if (existing[id]) {
-                throw new Error(`Duplicate item id ${id}`);
-            }
-            existing[id] = item;
+            if (!existing[id]) {
+                existing[id] = item;    
+            }            
         }
 
         // Bring into line with supplied data

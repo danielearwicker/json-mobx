@@ -138,6 +138,26 @@ function fancyArrayTest(o1: HasFancyArray, t: test.Test) {
         ]
     });
 
+    const o5 = new HasFancyArray();
+    o5.fancyArray.push(new FancyItem());
+    o5.fancyArray[0].firstName = "Bart";
+    json.save(o5); // force an ID to be assigned to Bart
+    t.equal(json.idOf(o5.fancyArray[0]), 1);
+
+    const o6 = new HasFancyArray();
+    o6.fancyArray.push(new FancyItem());
+    json.save(o6); // force an ID to be assigned to Homer
+    t.equal(json.idOf(o6.fancyArray[0]), 1);
+
+    o6.fancyArray.push(o5.fancyArray[0]);
+
+    json.load(o6, {
+        fancyArray: [
+            { "<id>": 1, firstName: "Homer", lastName: "Simpson" },
+            { "<id>": 2, firstName: "Bart", lastName: "Simpson" }
+        ]
+    });
+
     t.end();
 }
 

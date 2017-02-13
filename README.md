@@ -1,6 +1,9 @@
 # json-mobx
 *Simple undo/redo and persistence for MobX*
 
+[![Build Status](https://travis-ci.org/danielearwicker/json-mobx.svg?branch=master)](https://travis-ci.org/danielearwicker/json-mobx)
+[![Coverage Status](https://coveralls.io/repos/danielearwicker/json-mobx/badge.svg?branch=master&service=github)](https://coveralls.io/github/danielearwicker/json-mobx?branch=master)
+
     npm install --save json-mobx
 
 Based on a single trivial concept: an object must have a mutable property called `json` that holds its JSON representation (and by JSON we mean a plain object tree that can be round-tripped via JSON).

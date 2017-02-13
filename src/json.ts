@@ -196,8 +196,8 @@ function load(obj: any, data: any) {
             return;
         }
 
-        const itemConstructor = (obj as any)[arrayConstructorKey];
-        if (!itemConstructor) {
+        const itemFactory = (obj as any)[arrayConstructorKey];
+        if (!itemFactory) {
             // Plain array data, so just replace everything
             obj.splice.apply(obj, [0, obj.length].concat(data));
             return;
@@ -225,7 +225,7 @@ function load(obj: any, data: any) {
             if (item) {
                 delete existing[itemId];
             } else {
-                item = new itemConstructor();
+                item = itemFactory();
                 setArrayItemId(item, itemId);
             }
 
@@ -245,10 +245,15 @@ function load(obj: any, data: any) {
     obj.json = data;
 }
 
-function arrayOf<T extends Partial<Disposable>>(ctor: new() => T): T[] {
+function array<T extends Partial<Disposable>>(factory: () => T): T[] {
     const result: T[] = observable([]);
-    (result as any)[arrayConstructorKey] = ctor;
+    (result as any)[arrayConstructorKey] = factory;
     return result;
 }
 
-export const json = Object.assign(jsonImpl, { load, save, arrayOf, idOf: getArrayItemId });
+
+function arrayOf<T extends Partial<Disposable>>(ctor: new() => T): T[] {
+    return array(() => new ctor());
+}
+
+export const json = Object.assign(jsonImpl, { load, save, array, arrayOf, idOf: getArrayItemId });

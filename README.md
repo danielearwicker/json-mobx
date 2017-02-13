@@ -1,17 +1,21 @@
 # json-mobx
 *Simple undo/redo and persistence for MobX*
 
+    npm install --save json-mobx
+
 Based on a single trivial concept: an object must have a mutable property called `json` that holds its JSON representation (and by JSON we mean a plain object tree that can be round-tripped via JSON).
 
-As the `json` property is mutable, it means you can restore the object to a prior state by assigning to its `json` property. This is in contrast to most serialization systems which deserialize by creating a brand new tree of objects. Here we tend towards *minimally updating* an existing tree to bring it into line with the provided JSON.
+As the `json` property is mutable, it means you can restore the object to a prior state by assigning to its `json` property. This is in contrast to most serialization systems which deserialize by creating a brand new tree of objects. Here we tend towards *reconciling* or *minimally updating* an existing tree to bring it into line with the provided JSON.
 
 This is particularly suited to situations where an object is not pure data but is also dependent on (or depended on by) the "environment". This is closely related to the way React components can use `componentDidMount` and `componentWillUnmount` to wire themselves into environmental dependencies. Or to put it another way, objects have a life-cycle.
 
-    npm install --save json-mobx
+It also means that, thanks to MobX, implementing Undo/Redo is very easy. Prior states can be captured efficiently, and can be "loaded into" a live object hierarchy with minimal impact on unchanged objects.
 
-## The `json` decorator
+In these notes we will use the term *live object* to refer to objects that have a `json` computed property.
 
-For many simple types of object, which just have a set of properties that need to be stored, it is a pain to write the `json` property by hand. So we provide a `json` decorator:
+## The `@json` decorator
+
+For typical live objects it is a pain to write the `json` computed property by hand. So we provide a `json` decorator:
 
 ```ts
 export class Widget  {
@@ -27,24 +31,9 @@ export class Widget  {
 
 This class automagically gains a hidden `json` property. It is defined by a MobX `computed` so it only regenerates the JSON representation if anything changes.
 
-There are also helper functions `json.save` and `json.load`. These are trivial and just deal with missing objects and checking that the `json` property exists before accessing or updating it:
+## Saving and Loading
 
-```ts
-function load(obj: any, data: any) {    
-    if (data) {
-        checkJsonProperty(obj);
-        obj.json = data;
-    }
-}
-
-function save(obj: any) {
-    if (!obj) {
-        return undefined;
-    }
-    checkJsonProperty(obj);
-    return obj.json;
-}
-```
+There are also helper functions `json.save` and `json.load`. These select the correct way to serialize based on the kind of object. Note that `json.load` does not return a new de-serialized object. Rather, it updates the object passed to it.
 
 So:
 
@@ -59,30 +48,44 @@ json.load(w2, j);
 
 If you use the `@json` decorator on a property that refers to an object with its own `json` implementation, that implementation will be used to persist that object, so ultimately you have control over what is saved/loaded and what side-effects this can have (this is important when objects may be "wired up" to external dependencies).
 
-This means that stateful objects form a tree in which each object has a single owner.
+This means that stateful objects form a tree in which each object has a single owner. Where a `@json` property refers to another live object, consider marking it `readonly`; instead of allocating a new object, you will be reconfiguring the existing one. (This is not an absolute rule, but usually makes sense.)
 
-Everything else is just extending or consuming this idea.
+## Arrays
+There is built-in support for arrays. The `save` and `load` functions descend recursively into the items of arrays. Arrays of plain objects or primitives are not treated any differently to primitives.
 
-## Built-in classes
+More interestingly, you can construct an array property using `json.arrayOf(SomeClass)` instead of plain `[]`:
 
-Building on this idea, we define two built-in classes, but note that these are just objects with their own `json` property implementation and are very simple, so you can see them as examples for rolling your own varieties:
+```ts
+class FancyItem {
+    @json firstName = "Homer";
+    @json lastName = "Simpson";
+}
 
-* `Collection` (an array of objects)
-* `Polymorph` (a reference to a child object that can be of a set of types)
+class HasFancyArray {
+    @json readonly fancyArray = json.arrayOf(FancyItem);
 
-In addition we provide `Undo`, an automatic undo/redo system suitable for editors. You construct it by passing an object with a `json` property, and it does the rest.
+    // instead of:
+    // @json fancyArray = [];
+}
+```
 
-## Collection
+Again, note the use of `readonly` on the `fancyArray` property. This is a good idea because if you accidentally assigned a new (ordinary) array to `fancyArray` it would lose the ability to perform reconciliation.
 
-The `Collection` class holds a readonly observable array of `items`. Each item is an object with a `json` property, and the collection's own `json` format is an array. 
+Behind the scenes, the items of the array will be stamped with unique IDs, which are later used for reconciliation. When a prior state of `HasFancyArray` is restored by `json.load`, it will match up the data with the right objects by ID. It will also use the `FancyItem` constructor to default-construct any additional objects specified in the saved state, so it can load into them.
 
-Furthermore `Collection` mandates that each item must have a property called `id`, which is either a number or a string. This is very closely analogous to React's `key` prop. When the `json` is assigned to, the `Collection` compares its array of items with the provided array and makes minimal updates, matching items by `id`.
+The type parameter of `json.arrayOf` is constrained so it must be a `new`-able class constructor that takes no arguments. If it has a method `dispose`, that must require no arguments (it will be automatically called whenever `json.load` discards an existing item from the array).
 
-Optionally, items can have a `dispose` method. This is called when the diffing process discards an item. This is again closely analogous to `componentWillUnmount`, providing objects with an opportunity to detach themselves from any environmental dependencies.
+This reconciliation process is closely analogous to React's treatement of the virtual DOM. The optional `dispose` method works like `componentWillUnmount`, providing objects with an opportunity to detach themselves from any environmental dependencies before they are abandoned.
+
+Also the auto-generated ID stamped onto each array item plays a similar role to React's `key` prop. The major difference is that you don't need to specify the ID manually.
+
+If you want to use the ID as a React `key`, you can get it with `json.idOf(item)`. But note that it will return the value 0 until its containing array has been saved. (If you attach an `Undo` system to your root object, this will happen automatically).
 
 ## Polymorph
 
-A polymorph is a container that holds exactly one object, of a type that may change. It doesn't just refer to the object; it *owns* it (just as `Collection` owns all its items), so it can optionally `dispose` it when necessary.
+As you can create a class with a `json` computed property to define a custom serialization technique, it is easy to extend this library. One very common requirement is to refer to an object whose precise type may vary. This is supported by the built-in `Polymorph` class, though in reality it is just a (very simple) example of a class with a custom `json` computed property.
+
+A polymorph is a container that holds exactly one object, of a type that may change. It doesn't just refer to the object; it *owns* it, so it can optionally `dispose` it when necessary.
 
 To construct it, you specify the string that names the initial type and a `factory` function that constructs an instance of the type (the constructor immediately calls it to get the initial instance).
 
@@ -90,7 +93,7 @@ To construct it, you specify the string that names the initial type and a `facto
 constructor(type: string, private factory: (type: string) => T) ...
 ```
 
-It has a `readonly` property `target` which is the current owned instance.
+It has a `readonly` property `target` which is the current owned instance (note: this property's value may change. It is `readonly`, not `const`!)
 
 It has `get` and `set` methods that operate on the object type. So `p.set("MisterTickle")` will assign a new instance of `MisterTickle` (that is, whatever is returned when the factory is called with `"MisterTickle"`). If you're familiar with [bidi-mobx](https://github.com/danielearwicker/bidi-mobx) you'll have noticed that this makes it a `BoxedValue` holding the type of the object, so it can be bound to a `SelectString`.
 
@@ -103,11 +106,10 @@ It implements the `json` property so that the format is
 }
 ```
 
-The `settings` part depends on the type.
+The `settings` part depends on the type: `Polymorph` simply uses `json.load` and `json.save` to take care of it.
 
 When the type changes, the previous instance has its `dispose` method called, if any. Also `Polymorph` itself implements `dispose` by calling on to the current instance's `dispose`, if any.
 
 ## Undo
 
-When you construct an `Undo` object you pass it the root object-with-a-`json`-property and it immediately captures the current state. It does this inside `autorun`, so if the state changes it will be recaptured. The second time this happens, the previous state is pushed onto the undo stack. `Undo` has public properties `canUndo` and `canRedo`, and methods `undo` and `redo`, so you can link those up to a couple of toolbar buttons in an editor.
-
+When you construct an `Undo` object you pass it the root live object and it immediately captures the current state. It does this inside `autorun`, so if the state changes it will be recaptured. The second time this happens, the previous state is pushed onto the undo stack. `Undo` has public properties `canUndo` and `canRedo`, and methods `undo` and `redo`, so you can link those up to a couple of toolbar buttons in an editor.

@@ -14,6 +14,17 @@ function getPropertyDescriptor(obj: any, propertyName: string) {
     return undefined;
 }
 
+function getOrCreateComputed(obj: any, key: string, options: () => { get(): any; set(data: any): void }) {
+    let result: IComputedValue<any>;
+    if (!Object.prototype.hasOwnProperty.call(obj, key)) {
+        const { get, set } = options();
+        obj[key] = result = computed(get, set);
+    } else {
+        result = obj[key];
+    }
+    return result;
+}
+
 function getJsonComputed(
     that: any, 
     { computedKey, propertiesKey, superGet, superSet }: {
@@ -23,50 +34,45 @@ function getJsonComputed(
         superSet: ((data: any) => void) | undefined 
     }
 ) {
-    function get() {
-        // Note we "clone" the superclass's data if any, not merging into its data!
-        const data = { ... (superGet && superGet.call(that)) } || {};
-        for (const propertyName of that[propertiesKey]) {            
-            data[propertyName] = save(that[propertyName]);
-        }
-        return data;
-    }
+    return getOrCreateComputed(that, computedKey, () => ({
+        
+        get() {
+            // Note we "clone" the superclass's data if any, not merging into its data!
+            const data = { ... (superGet && superGet.call(that)) } || {};
+            for (const propertyName of that[propertiesKey]) {            
+                data[propertyName] = save(that[propertyName]);
+            }
+            return data;
+        },
 
-    function set(data: any) {
-        if (superSet) {
-            superSet.call(that, data);
-        }
-
-        if (!data || typeof data !== "object") {
-            return;
-        }
-
-        for (const propertyName of that[propertiesKey]) {
-            if (!(propertyName in data)) {
-                continue;
+        set(data: any) {
+            if (superSet) {
+                superSet.call(that, data);
             }
 
-            const source = data[propertyName];
-            const target = that[propertyName];
+            if (!data || typeof data !== "object") {
+                return;
+            }
 
-            if (source !== null && source !== undefined && canLoadInto(target)) {                
-                load(target, source);
-            } else {
-                const prop = getPropertyDescriptor(that, propertyName);
-                if (!prop || prop.set || !prop.get) {
-                    that[propertyName] = source;
+            for (const propertyName of that[propertiesKey]) {
+                if (!(propertyName in data)) {
+                    continue;
+                }
+
+                const source = data[propertyName];
+                const target = that[propertyName];
+
+                if (source !== null && source !== undefined && canLoadInto(target)) {                
+                    load(target, source);
+                } else {
+                    const prop = getPropertyDescriptor(that, propertyName);
+                    if (!prop || prop.set || !prop.get) {
+                        that[propertyName] = source;
+                    }
                 }
             }
         }
-    }
-
-    let result: IComputedValue<any>;
-    if (!Object.prototype.hasOwnProperty.call(that, computedKey)) {
-        that[computedKey] = result = computed(get, set);
-    } else {
-        result = that[computedKey];
-    }
-    return result;
+    }));
 }
 
 const classSuffixKey = "<classId>";
@@ -112,7 +118,6 @@ function jsonImpl(prototype: any, propertyName: string) {
 }
 
 const arrayItemIdKey = "<id>";
-const arrayConstructorKey = "<constructor>";
 
 function getArrayItemId(item: any) {
     return (item && typeof item === "object" && item[arrayItemIdKey]) || 0;
@@ -159,26 +164,71 @@ function isArray(obj: any) {
     return Array.isArray(obj) || isObservableArray(obj);
 }
 
-function save(obj: any): any {
-    if (obj === undefined || obj === null || typeof obj !== "object" ||
-        !(("json" in obj) || isArray(obj))) {
-        return obj;
-    }
+function save(obj: any): any {    
+    return hasJsonProperty(obj) ? obj.json : obj;
+}
 
-    if (isArray(obj)) {
-        if ((obj as any)[arrayConstructorKey]) {
-            setArrayItemIds(obj);
-            return obj.map(saveArrayItem);
-        }
-
-        return obj;
-    }
-
-    return obj.json;
+function hasJsonProperty(obj: any) {
+    return obj && typeof obj === "object" && ("json" in obj);
 }
 
 function canLoadInto(obj: any) {
-    return obj && typeof obj === "object" && (("json" in obj) || isArray(obj));
+    return hasJsonProperty(obj) || (obj && isArray(obj));
+}
+
+function getArrayJsonComputed(ar: any[], itemFactory: () => any) {
+
+    return getOrCreateComputed(ar, "<json>", () => ({
+
+        get() {
+            setArrayItemIds(ar);
+            return ar.map(saveArrayItem);        
+        },
+
+        set(data: any) {
+            if (!isArray(data)) {
+                ar.length = 0; // most likely schema has changed
+                return;
+            }
+
+            // Build map of existing items by ID
+            const existing: { [id: string]: any } = {};
+            for (const item of ar) {
+                const id = getArrayItemId(item);
+                if (!existing[id]) {
+                    existing[id] = item;    
+                }            
+            }
+
+            // Bring into line with supplied data
+            ar.length = data.length;
+            
+            for (let i = 0; i < data.length; i++) {
+                const itemJson = data[i];
+                const itemId = getArrayItemId(itemJson);
+
+                // Reuse existing item with same id
+                let item = existing[itemId];
+                if (item) {
+                    delete existing[itemId];
+                } else {
+                    item = itemFactory();
+                    setArrayItemId(item, itemId);
+                }
+
+                load(item, itemJson);            
+                ar[i] = item;
+            }
+        
+            // Dispose any items not reused
+            for (const key of Object.keys(existing)) {
+                const item = existing[key];
+                if (item.dispose) {
+                    item.dispose();
+                }
+            }
+        }
+    }));
 }
 
 function load(obj: any, data: any) {
@@ -190,66 +240,37 @@ function load(obj: any, data: any) {
         throw new Error("Can only load JSON into an object with a json property, or an array");
     }
 
-    if (isArray(obj)) {
-        if (!isArray(data)) {
-            obj.length = 0; // most likely schema has changed
-            return;
-        }
-
-        const itemFactory = (obj as any)[arrayConstructorKey];
-        if (!itemFactory) {
-            // Plain array data, so just replace everything
-            obj.splice.apply(obj, [0, obj.length].concat(data));
-            return;
-        }
-
-        // Build map of existing items by ID
-        const existing: { [id: string]: any } = {};
-        for (const item of obj) {
-            const id = getArrayItemId(item);
-            if (!existing[id]) {
-                existing[id] = item;    
-            }            
-        }
-
-        // Bring into line with supplied data
-        obj.length = data.length;
-        
-        for (let i = 0; i < data.length; i++) {
-            const itemJson = data[i];
-            const itemId = getArrayItemId(itemJson);
-
-            // Reuse existing item with same id
-            let item = existing[itemId];
-            if (item) {
-                delete existing[itemId];
-            } else {
-                item = itemFactory();
-                setArrayItemId(item, itemId);
-            }
-
-            json.load(item, itemJson);            
-            obj[i] = item;
-        }
-    
-        // Dispose any items not reused
-        for (const key of Object.keys(existing)) {
-            const item = existing[key];
-            if (item.dispose) {
-                item.dispose();
-            }
-        }
+    if (hasJsonProperty(obj)) {
+        obj.json = data;
+        return;
     }
 
-    obj.json = data;
+    if (isArray(obj)) {
+        // Plain array data, so just replace everything
+        if (isArray(data)) {            
+            obj.splice.apply(obj, [0, obj.length].concat(data));
+        } else {
+            obj.length = 0;
+        }
+        return;
+    }
 }
 
 function array<T extends Partial<Disposable>>(factory: () => T): T[] {
+
     const result: T[] = observable([]);
-    (result as any)[arrayConstructorKey] = factory;
+
+    Object.defineProperty(result, "json", {
+        get(this: any) {
+            return getArrayJsonComputed(this, factory).get();
+        },
+        set(this: any, data: any) {
+            getArrayJsonComputed(this, factory).set(data);
+        }
+    });
+
     return result;
 }
-
 
 function arrayOf<T extends Partial<Disposable>>(ctor: new() => T): T[] {
     return array(() => new ctor());

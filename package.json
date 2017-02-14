@@ -1,6 +1,6 @@
 {
   "name": "json-mobx",
-  "version": "0.5.6",
+  "version": "0.6.0",
   "description": "Simple undo/redo and persistence for MobX",
   "main": "built/index.js",
   "types": "built/index.d.ts",

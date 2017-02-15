@@ -26,6 +26,10 @@ test(`basic arrays`, t => {
 
     t.same(o2.simpleArray, ["fish", { firstName: "bob" }]);
 
+    json.load(o2, { simpleArray: { notAnArray: true } });
+
+    t.equal(o2.simpleArray.length, 0);
+
     t.end();
 });
 
@@ -42,7 +46,13 @@ class HasFancyArray {
     @json fancyArray = json.arrayOf(FancyItem);
 }
 
-function fancyArrayTest(o1: HasFancyArray, t: test.Test) {
+function fancyArrayTest(cls: new() => HasFancyArray, t: test.Test) {
+    
+    const o1 = new cls();
+    o1.fancyArray.push(new FancyItem());
+    json.load(o1, { fancyArray: { notAnArray: true } });
+    t.equal(o1.fancyArray.length, 0);
+
     o1.fancyArray.push(new FancyItem());
     o1.fancyArray.push(new FancyItem());
     o1.fancyArray.push(new FancyItem());
@@ -117,14 +127,14 @@ function fancyArrayTest(o1: HasFancyArray, t: test.Test) {
         ]
     });
 
-    const o3 = new HasFancyArray();
+    const o3 = new cls();
     o3.fancyArray.push(new FancyItem());
     o3.fancyArray[0].firstName = "Bart";
 
     json.save(o3); // force an ID to be assigned to Bart
     t.equal(json.idOf(o3.fancyArray[0]), 1);
 
-    const o4 = new HasFancyArray();
+    const o4 = new cls();
     o4.fancyArray.push(new FancyItem());
     o4.fancyArray.push(o3.fancyArray[0]);
 
@@ -138,13 +148,13 @@ function fancyArrayTest(o1: HasFancyArray, t: test.Test) {
         ]
     });
 
-    const o5 = new HasFancyArray();
+    const o5 = new cls();
     o5.fancyArray.push(new FancyItem());
     o5.fancyArray[0].firstName = "Bart";
     json.save(o5); // force an ID to be assigned to Bart
     t.equal(json.idOf(o5.fancyArray[0]), 1);
 
-    const o6 = new HasFancyArray();
+    const o6 = new cls();
     o6.fancyArray.push(new FancyItem());
     json.save(o6); // force an ID to be assigned to Homer
     t.equal(json.idOf(o6.fancyArray[0]), 1);
@@ -158,14 +168,75 @@ function fancyArrayTest(o1: HasFancyArray, t: test.Test) {
         ]
     });
 
+    const o7 = new cls();
+    o7.fancyArray.push(new FancyItem());
+    o7.fancyArray[0].firstName = "Bart";
+    json.save(o7); // force an ID to be assigned to Bart
+    t.equal(json.idOf(o7.fancyArray[0]), 1);
+
+    const o8 = new cls();
+    o8.fancyArray.push(new FancyItem());
+    json.save(o8); // force an ID to be assigned to Homer
+    t.equal(json.idOf(o8.fancyArray[0]), 1);
+
+    o8.fancyArray.push(o7.fancyArray[0]);
+
+    const s8 = json.save(o8);
+
+    t.same(s8, {
+        fancyArray: [
+            { "<id>": 1, firstName: "Homer", lastName: "Simpson" },
+            { "<id>": 2, firstName: "Bart", lastName: "Simpson" }
+        ]
+    });
+
+    const o9 = new cls();
+    const bart = new DisposableItem("Bart", "Simpson", 100);
+    const homer = new DisposableItem("Homer", "Simpson", 200)
+    o9.fancyArray.push(bart);
+    o9.fancyArray.push(homer);
+    
+    t.same(json.save(o9), {
+        fancyArray: [
+            { "<id>": 1, firstName: "Bart", lastName: "Simpson" },
+            { "<id>": 2, firstName: "Homer", lastName: "Simpson" }
+        ]
+    })
+
+    json.load(o9, {
+        fancyArray: [
+            { "<id>": 1, firstName: "Bart", lastName: "Simpson" },
+            { "<id>": "other", firstName: "Lisa", lastName: "Simpson" },
+        ]
+    })
+
+    t.equal(bart.disposed, false);
+    t.equal(homer.disposed, true);
+
     t.end();
 }
 
-test(`fancy arrays`, t => fancyArrayTest(new HasFancyArray(), t));
+class DisposableItem extends FancyItem {
+
+    disposed = false;
+
+    constructor(firstName: string, lastName: string, tag: number) {
+        super();
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.tag = tag;    
+    }
+
+    dispose() {
+        this.disposed = true;
+    }   
+}
+
+test(`fancy arrays`, t => fancyArrayTest(HasFancyArray, t));
 
 class HasFancyObservableArray {
 
     @json fancyArray = json.arrayOf(FancyItem);
 }
 
-test(`fancy observable arrays`, t => fancyArrayTest(new HasFancyObservableArray(), t));
+test(`fancy observable arrays`, t => fancyArrayTest(HasFancyObservableArray, t));

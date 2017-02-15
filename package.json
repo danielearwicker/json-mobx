@@ -1,13 +1,13 @@
 {
   "name": "json-mobx",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Simple undo/redo and persistence for MobX",
   "main": "built/index.js",
   "types": "built/index.d.ts",
   "scripts": {
     "build": "tsc",
     "test": "tape built/test/**/*.js",
-    "coverage": "istanbul cover tape built/test/**/*.js",
+    "coverage": "node fix-coverage.js && istanbul cover tape built/test/**/*.js",
     "prepublish": "npm run build && npm run test",
     "all": "npm run build && npm run test && npm run coverage"
   },

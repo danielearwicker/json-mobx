@@ -2,7 +2,7 @@
 *Simple undo/redo and persistence for MobX*
 
 [![Build Status](https://travis-ci.org/danielearwicker/json-mobx.svg?branch=master)](https://travis-ci.org/danielearwicker/json-mobx)
-[![Coverage Status](https://coveralls.io/repos/danielearwicker/json-mobx/badge.svg?branch=master&service=github)](https://coveralls.io/github/danielearwicker/json-mobx?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/danielearwicker/json-mobx/badge.svg?branch=master)](https://coveralls.io/github/danielearwicker/json-mobx?branch=master)
 
     npm install --save json-mobx
 

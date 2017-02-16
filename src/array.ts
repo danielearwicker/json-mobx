@@ -5,54 +5,55 @@ import { Disposable } from "./Disposable";
 
 const arrayItemIdKey = "<id>";
 
-export function getArrayItemId(item: any) {
-    return (item && typeof item === "object" && item[arrayItemIdKey]) || 0;
+export function getArrayItemId(item: any, idKey?: string) {
+    return item && typeof item === "object" && item[idKey || arrayItemIdKey];
 }
 
-function setArrayItemId(item: any, id: number) {
+function setArrayItemId(item: any, id: string|number|undefined, idKey: string|undefined) {
     if (item && typeof item === "object") {
-        item[arrayItemIdKey] = id;
+        item[idKey || arrayItemIdKey] = id;
     }
 }
 
-function setArrayItemIds(ar: any[]) {
+function setArrayItemIds(ar: any[], idKey: string|undefined) {
     let nextId = 1;
     const usedIds: { [id: string]: boolean } = {};
-    
+
     // First pass - clear IDs that are duplicates
     for (const item of ar) {
-        const id = getArrayItemId(item);
-        if (id) {
-            nextId = Math.max(nextId, id + 1);
+        const id = getArrayItemId(item, idKey);
+        if (id !== undefined) {
+            nextId = typeof id === "number" ? Math.max(nextId, id + 1) : nextId;
 
             if (usedIds[id]) {
-                setArrayItemId(item, 0);
+                setArrayItemId(item, undefined, idKey);
             } else {
                 usedIds[id] = true;
-            }        
+            }
         }
     }
 
     // Second pass - allocate IDs
     for (const item of ar) {
-        const id = getArrayItemId(item);
-        if (!id) {
-            setArrayItemId(item, nextId++);
+        const id = getArrayItemId(item, idKey);
+        if (id === undefined) {
+            setArrayItemId(item, nextId++, idKey);
         }
     }
 }
 
-function saveArrayItem(item: any) {
+function saveItemWithId(item: any) {
     return { ...save(item), [arrayItemIdKey]: getArrayItemId(item) };
 }
 
-function getArrayJsonComputed(ar: any[], itemFactory: () => any) {
+
+function getArrayJsonComputed(ar: any[], itemFactory: () => any, idKey: string|undefined) {
 
     return getOrCreateComputed(ar, "<json>", () => ({
 
         get() {
-            setArrayItemIds(ar);
-            return ar.map(saveArrayItem);        
+            setArrayItemIds(ar, idKey);
+            return ar.map(idKey ? save : saveItemWithId);
         },
 
         set(data: any) {
@@ -64,10 +65,10 @@ function getArrayJsonComputed(ar: any[], itemFactory: () => any) {
             // Build map of existing items by ID
             const existing: { [id: string]: any } = {};
             for (const item of ar) {
-                const id = getArrayItemId(item);
-                if (!existing[id]) {
-                    existing[id] = item;    
-                }            
+                const id = getArrayItemId(item, idKey);
+                if (id !== undefined && !existing[id]) {
+                    existing[id] = item;
+                }
             }
 
             // Bring into line with supplied data
@@ -75,7 +76,7 @@ function getArrayJsonComputed(ar: any[], itemFactory: () => any) {
             
             for (let i = 0; i < data.length; i++) {
                 const itemJson = data[i];
-                const itemId = getArrayItemId(itemJson);
+                const itemId = getArrayItemId(itemJson, idKey);
 
                 // Reuse existing item with same id
                 let item = existing[itemId];
@@ -83,7 +84,7 @@ function getArrayJsonComputed(ar: any[], itemFactory: () => any) {
                     delete existing[itemId];
                 } else {
                     item = itemFactory();
-                    setArrayItemId(item, itemId);
+                    setArrayItemId(item, itemId, idKey);
                 }
 
                 load(item, itemJson);            
@@ -101,22 +102,22 @@ function getArrayJsonComputed(ar: any[], itemFactory: () => any) {
     }));
 }
 
-export function array<T extends Partial<Disposable>>(factory: () => T): T[] {
+export function array<T extends Partial<Disposable>>(factory: () => T, id?: keyof T): T[] {
 
     const result: T[] = observable([]);
 
     Object.defineProperty(result, "json", {
         get(this: any) {
-            return getArrayJsonComputed(this, factory).get();
+            return getArrayJsonComputed(this, factory, id).get();
         },
         set(this: any, data: any) {
-            getArrayJsonComputed(this, factory).set(data);
+            getArrayJsonComputed(this, factory, id).set(data);
         }
     });
 
     return result;
 }
 
-export function arrayOf<T extends Partial<Disposable>>(ctor: new() => T): T[] {
-    return array(() => new ctor());
+export function arrayOf<T extends Partial<Disposable>>(ctor: new() => T, id?: keyof T): T[] {
+    return array(() => new ctor(), id);
 }

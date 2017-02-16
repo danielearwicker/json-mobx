@@ -1,6 +1,7 @@
 
 import * as test from "tape";
 import { json } from "../index"
+import { observable } from "mobx";
 
 class HasSimpleArray {
 
@@ -240,3 +241,55 @@ class HasFancyObservableArray {
 }
 
 test(`fancy observable arrays`, t => fancyArrayTest(HasFancyObservableArray, t));
+
+class Todo {
+    @json @observable id = "";
+    @json @observable text = "";
+
+    @observable completed = false; // not included in JSON
+}
+
+class TodoStore {
+    @json todos = json.arrayOf(Todo, "id");
+}
+
+test(`basic arrays`, t => {
+
+    const m = new TodoStore();
+
+    const shop = new Todo();
+    shop.id = "abc1";
+    shop.text = "Shop";
+    m.todos.push(shop);
+
+    const drop = new Todo();
+    drop.id = "abc2";
+    drop.text = "Drop";
+    m.todos.push(drop);
+
+    const s1 = json.save(m);
+
+    t.same(s1, {
+        todos: [
+            { id: "abc1", text: "Shop" },
+            { id: "abc2", text: "Drop" }
+        ]
+    });
+
+    drop.completed = true;
+    drop.text = "Snooze";
+
+    json.load(m, s1);
+
+    t.same(s1, {
+        todos: [
+            { id: "abc1", text: "Shop" },
+            { id: "abc2", text: "Drop" }
+        ]
+    });
+
+    t.equal(shop.completed, false);
+    t.equal(drop.completed, true);
+
+    t.end();
+});

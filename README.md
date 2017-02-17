@@ -14,6 +14,8 @@ This is particularly suited to situations where an object is not pure data but i
 
 It also means that, thanks to MobX, implementing Undo/Redo is very easy. Prior states can be captured efficiently, and can be "loaded into" a live object hierarchy with minimal impact on unchanged objects.
 
+[Long read on the philosophy, inspiration, relationship to other projects](http://danielearwicker.github.io/json_mobx_Like_React_but_for_Data_Part_2_.html)
+
 In these notes we will use the term *live object* to refer to objects that have a `json` computed property.
 
 ## The `@json` decorator

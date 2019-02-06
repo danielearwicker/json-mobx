@@ -16,7 +16,7 @@ It also means that, thanks to MobX, implementing Undo/Redo is very easy. Prior s
 
 [Example demonstrating Undo/Redo](https://github.com/danielearwicker/baltar)
 
-[Long read on the philosophy, inspiration, relationship to other projects](http://danielearwicker.github.io/json_mobx_Like_React_but_for_Data_Part_2_.html)
+[Long read on the philosophy, inspiration, relationship to other projects](http://danielearwicker.github.io/json_mobx_Like_React_but_for_Data_Part_2.html)
 
 In these notes we will use the term *live object* to refer to objects that have a `json` computed property.
 
